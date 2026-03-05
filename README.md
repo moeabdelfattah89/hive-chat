@@ -161,4 +161,4 @@ If you discover a security vulnerability, please email the maintainer directly r
 
 ## License
 
-[MIT](LICENSE)
+[Apache License 2.0](LICENSE) — free to use, modify, and distribute. If you monetize this software, you must give visible credit to the original author. See [NOTICE](NOTICE) for attribution requirements.
