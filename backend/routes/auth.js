@@ -34,6 +34,15 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email, password, and display name are required' });
     }
 
+    // Basic email format validation
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    if (typeof display_name !== 'string' || display_name.length > 100) {
+      return res.status(400).json({ error: 'Display name must be 100 characters or less' });
+    }
+
     if (!workspace_name) {
       return res.status(400).json({ error: 'Workspace name is required' });
     }
@@ -78,6 +87,14 @@ router.post('/register-with-invite', async (req, res) => {
 
     if (!email || !password || !display_name || !invite_code) {
       return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    if (typeof display_name !== 'string' || display_name.length > 100) {
+      return res.status(400).json({ error: 'Display name must be 100 characters or less' });
     }
 
     if (password.length < 6) {
@@ -151,14 +168,12 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const user = result.rows[0];
-    const validPassword = await bcrypt.compare(password, user.password_hash);
+    const { password_hash, ...user } = result.rows[0];
+    const validPassword = await bcrypt.compare(password, password_hash);
 
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-
-    delete user.password_hash;
 
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
@@ -199,6 +214,23 @@ router.get('/me', auth, async (req, res) => {
 router.patch('/me', auth, async (req, res) => {
   try {
     const { display_name, avatar_url, title, phone, timezone, status_text, status_emoji, current_password, new_password } = req.body;
+
+    // Input length validation
+    if (display_name !== undefined && (typeof display_name !== 'string' || display_name.length > 100)) {
+      return res.status(400).json({ error: 'Display name must be 100 characters or less' });
+    }
+    if (title !== undefined && (typeof title !== 'string' || title.length > 150)) {
+      return res.status(400).json({ error: 'Title must be 150 characters or less' });
+    }
+    if (phone !== undefined && (typeof phone !== 'string' || phone.length > 30)) {
+      return res.status(400).json({ error: 'Phone must be 30 characters or less' });
+    }
+    if (status_text !== undefined && (typeof status_text !== 'string' || status_text.length > 100)) {
+      return res.status(400).json({ error: 'Status text must be 100 characters or less' });
+    }
+    if (status_emoji !== undefined && (typeof status_emoji !== 'string' || status_emoji.length > 32)) {
+      return res.status(400).json({ error: 'Status emoji must be 32 characters or less' });
+    }
 
     // Handle password change
     if (current_password && new_password) {
@@ -261,7 +293,7 @@ router.post('/me/avatar', auth, (req, res) => {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({ error: 'Avatar must be less than 5MB' });
       }
-      return res.status(400).json({ error: err.message });
+      return res.status(400).json({ error: 'Invalid image file' });
     }
 
     if (!req.file) {

@@ -2,11 +2,22 @@ const router = require('express').Router();
 const pool = require('../db');
 const { auth } = require('../middleware/auth');
 
-// Get workspace users
+const VALID_PRESENCE_STATUSES = ['online', 'away', 'dnd', 'offline'];
+
+// Get workspace users — requires workspace membership
 router.get('/workspace/:workspaceId', auth, async (req, res) => {
   try {
+    // Authorization
+    const wsCheck = await pool.query(
+      'SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',
+      [req.params.workspaceId, req.user.id]
+    );
+    if (wsCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const result = await pool.query(
-      `SELECT u.id, u.display_name, u.avatar_url, u.email, u.title, u.status_text, u.status_emoji,
+      `SELECT u.id, u.display_name, u.avatar_url, u.title, u.status_text, u.status_emoji,
               wm.role, wm.joined_at,
               COALESCE(up.status, 'offline') as presence
        FROM workspace_members wm
@@ -26,10 +37,19 @@ router.get('/workspace/:workspaceId', auth, async (req, res) => {
 // Get DM conversations for user in workspace
 router.get('/conversations/:workspaceId', auth, async (req, res) => {
   try {
+    // Authorization
+    const wsCheck = await pool.query(
+      'SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',
+      [req.params.workspaceId, req.user.id]
+    );
+    if (wsCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const result = await pool.query(
-      `SELECT c.*,
+      `SELECT c.id, c.workspace_id, c.is_group, c.name, c.created_at, c.updated_at,
         (SELECT json_agg(json_build_object(
-          'id', u.id, 'display_name', u.display_name, 'avatar_url', u.avatar_url, 'email', u.email,
+          'id', u.id, 'display_name', u.display_name, 'avatar_url', u.avatar_url,
           'presence', COALESCE(up.status, 'offline')
         ))
         FROM conversation_participants cp2
@@ -56,7 +76,7 @@ router.get('/conversations/:workspaceId', auth, async (req, res) => {
   }
 });
 
-// Create or get DM conversation
+// Create or get DM conversation — requires workspace membership for both users
 router.post('/conversations', auth, async (req, res) => {
   try {
     const { workspace_id, user_id: otherUserId } = req.body;
@@ -65,9 +85,23 @@ router.post('/conversations', auth, async (req, res) => {
       return res.status(400).json({ error: 'workspace_id and user_id are required' });
     }
 
-    // Check if conversation already exists between these two users
+    // Prevent DM to self
+    if (otherUserId === req.user.id) {
+      return res.status(400).json({ error: 'Cannot create a conversation with yourself' });
+    }
+
+    // Authorization: both users must be workspace members
+    const bothMembers = await pool.query(
+      'SELECT user_id FROM workspace_members WHERE workspace_id = $1 AND user_id IN ($2, $3)',
+      [workspace_id, req.user.id, otherUserId]
+    );
+    if (bothMembers.rows.length < 2) {
+      return res.status(403).json({ error: 'Both users must be workspace members' });
+    }
+
+    // Check if conversation already exists
     const existing = await pool.query(
-      `SELECT c.* FROM conversations c
+      `SELECT c.id, c.workspace_id, c.is_group, c.name, c.created_at FROM conversations c
        WHERE c.workspace_id = $1 AND c.is_group = false
        AND EXISTS(SELECT 1 FROM conversation_participants WHERE conversation_id = c.id AND user_id = $2)
        AND EXISTS(SELECT 1 FROM conversation_participants WHERE conversation_id = c.id AND user_id = $3)`,
@@ -80,21 +114,19 @@ router.post('/conversations', auth, async (req, res) => {
 
     // Create new conversation
     const conv = await pool.query(
-      'INSERT INTO conversations (workspace_id) VALUES ($1) RETURNING *',
+      'INSERT INTO conversations (workspace_id) VALUES ($1) RETURNING id, workspace_id, is_group, name, created_at',
       [workspace_id]
     );
 
     const conversation = conv.rows[0];
 
-    // Add both participants
     await pool.query(
       'INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2), ($1, $3)',
       [conversation.id, req.user.id, otherUserId]
     );
 
-    // Get other user info
     const otherUser = await pool.query(
-      `SELECT id, display_name, avatar_url, email FROM users WHERE id = $1`,
+      `SELECT id, display_name, avatar_url FROM users WHERE id = $1`,
       [otherUserId]
     );
 
@@ -107,17 +139,23 @@ router.post('/conversations', auth, async (req, res) => {
   }
 });
 
-// Update presence
+// Update presence — validate status value
 router.post('/presence', auth, async (req, res) => {
   try {
     const { workspace_id, status } = req.body;
+
+    const validStatus = VALID_PRESENCE_STATUSES.includes(status) ? status : 'online';
+
+    if (!workspace_id) {
+      return res.status(400).json({ error: 'workspace_id is required' });
+    }
 
     await pool.query(
       `INSERT INTO user_presence (user_id, workspace_id, status, last_active)
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (user_id, workspace_id)
        DO UPDATE SET status = $3, last_active = NOW()`,
-      [req.user.id, workspace_id, status || 'online']
+      [req.user.id, workspace_id, validStatus]
     );
 
     res.json({ success: true });
