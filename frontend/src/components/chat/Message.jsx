@@ -69,16 +69,24 @@ export default function Message({ message, onOpenThread, showAvatar = true, isTh
     .toUpperCase()
     .slice(0, 2);
 
+  // Escape HTML entities to prevent XSS
+  const escapeHtml = (str) => {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return str.replace(/[&<>"']/g, (c) => map[c]);
+  };
+
   // Format message content - basic markdown support
+  // SECURITY: HTML-escape FIRST, then apply safe formatting
   const formatContent = (text) => {
     if (!text) return '';
+    let formatted = escapeHtml(text);
     // Bold: *text*
-    let formatted = text.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+    formatted = formatted.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
     // Italic: _text_
     formatted = formatted.replace(/(?<!\w)_([^_]+)_(?!\w)/g, '<em>$1</em>');
     // Code: `text`
     formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
-    // Links
+    // Links — only allow http(s) URLs to prevent javascript: URI injection
     formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
     return formatted;
   };
