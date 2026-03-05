@@ -6,5 +6,6 @@ uploads/*
 !uploads/.gitkeep
 *.log
 .DS_Store
+.claude/
 coverage/
 .nyc_output/
