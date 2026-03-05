@@ -379,7 +379,7 @@ router.post('/:id/pin', auth, async (req, res) => {
     const msg = await pool.query('SELECT channel_id, conversation_id FROM messages WHERE id = $1', [req.params.id]);
     if (msg.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
 
-    const { channel_id } = msg.rows[0];
+    const { channel_id, conversation_id } = msg.rows[0];
     if (channel_id) {
       const memberCheck = await pool.query(
         'SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2',
@@ -387,6 +387,14 @@ router.post('/:id/pin', auth, async (req, res) => {
       );
       if (memberCheck.rows.length === 0) {
         return res.status(403).json({ error: 'Channel membership required to pin messages' });
+      }
+    } else if (conversation_id) {
+      const participantCheck = await pool.query(
+        'SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2',
+        [conversation_id, req.user.id]
+      );
+      if (participantCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'Access denied' });
       }
     }
 
@@ -425,12 +433,19 @@ router.get('/search/:workspaceId', auth, async (req, res) => {
        FROM messages m
        JOIN users u ON m.user_id = u.id
        LEFT JOIN channels c ON m.channel_id = c.id
-       WHERE (m.channel_id IN (SELECT id FROM channels WHERE workspace_id = $1)
-              OR m.conversation_id IN (SELECT id FROM conversations WHERE workspace_id = $1))
-         AND to_tsvector('english', m.content) @@ plainto_tsquery('english', $2)
+       WHERE (
+              (m.channel_id IN (SELECT id FROM channels WHERE workspace_id = $1))
+              OR
+              (m.conversation_id IN (
+                SELECT cp.conversation_id FROM conversation_participants cp
+                JOIN conversations conv ON cp.conversation_id = conv.id
+                WHERE conv.workspace_id = $1 AND cp.user_id = $2
+              ))
+            )
+         AND to_tsvector('english', m.content) @@ plainto_tsquery('english', $3)
        ORDER BY m.created_at DESC
        LIMIT 50`,
-      [req.params.workspaceId, q.trim()]
+      [req.params.workspaceId, req.user.id, q.trim()]
     );
 
     res.json({ messages: result.rows });
