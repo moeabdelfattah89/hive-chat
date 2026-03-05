@@ -16,8 +16,8 @@ import CreateWorkspace from './components/modals/CreateWorkspace';
 import InviteModal from './components/modals/InviteModal';
 
 export default function App() {
-  const { user, loading, workspaces, setWorkspaces } = useAuth();
-  const { emit, on, connected } = useSocket();
+  const { user, loading, workspaces } = useAuth();
+  const { emit, connected } = useSocket();
 
   const [authView, setAuthView] = useState('login');
   const [inviteCode, setInviteCode] = useState(null);

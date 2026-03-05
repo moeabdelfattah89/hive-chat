@@ -8,7 +8,7 @@ import MessageInput from './MessageInput';
 
 export default function ChannelView({ channel, onOpenThread, workspace }) {
   const { user } = useAuth();
-  const { emit, on, off, connected } = useSocket();
+  const { emit, on, connected } = useSocket();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);

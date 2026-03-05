@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -13,7 +13,6 @@ export default function Message({ message, onOpenThread, showAvatar = true, isTh
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const actionsRef = useRef(null);
 
   const isOwn = message.user_id === user?.id;
   const time = format(new Date(message.created_at), 'h:mm a');
@@ -180,7 +179,7 @@ export default function Message({ message, onOpenThread, showAvatar = true, isTh
 
       {/* Hover actions */}
       {showActions && !isEditing && (
-        <div className="message-actions" ref={actionsRef}>
+        <div className="message-actions">
           {QUICK_REACTIONS.slice(0, 3).map(emoji => (
             <button key={emoji} className="action-btn" onClick={() => handleReaction(emoji)} title={`React with ${emoji}`}>
               {emoji}
