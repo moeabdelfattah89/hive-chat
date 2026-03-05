@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useSocket } from '../../contexts/SocketContext';
 import EmojiPicker from './EmojiPicker';
 import api from '../../api';
@@ -12,6 +12,21 @@ export default function MessageInput({ channelId, conversationId, parentId, plac
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+
+  // Create stable object URLs for file previews, revoke old ones on change
+  const filePreviewUrls = useMemo(() => {
+    return files.map(file =>
+      file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+    );
+  }, [files]);
+
+  useEffect(() => {
+    return () => {
+      filePreviewUrls.forEach(url => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [filePreviewUrls]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -120,8 +135,8 @@ export default function MessageInput({ channelId, conversationId, parentId, plac
         <div className="file-preview-bar">
           {files.map((file, idx) => (
             <div key={idx} className="file-preview-item">
-              {file.type.startsWith('image/') ? (
-                <img src={URL.createObjectURL(file)} alt={file.name} />
+              {filePreviewUrls[idx] ? (
+                <img src={filePreviewUrls[idx]} alt={file.name} />
               ) : (
                 <div className="file-preview-doc">
                   <svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 1h5l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.2" fill="none"/></svg>
