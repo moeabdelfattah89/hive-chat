@@ -2,6 +2,7 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const pool = require('../db');
 const { auth, optionalAuth, workspaceMember, requireRole } = require('../middleware/auth');
+const { createWorkspaceForUser, joinWorkspaceViaInvite } = require('../utils/workspace');
 
 // Generate random invite code
 function generateCode() {
@@ -17,46 +18,9 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ error: 'Workspace name is required' });
     }
 
-    const slug = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
+    const workspace = await createWorkspaceForUser(req.user.id, name.trim(), description);
 
-    let finalSlug = slug;
-    const existing = await pool.query('SELECT id FROM workspaces WHERE slug = $1', [slug]);
-    if (existing.rows.length > 0) {
-      finalSlug = `${slug}-${crypto.randomBytes(2).toString('hex')}`;
-    }
-
-    const wsResult = await pool.query(
-      `INSERT INTO workspaces (name, slug, description, created_by)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name.trim(), finalSlug, description || 'A new Hive workspace', req.user.id]
-    );
-    const workspace = wsResult.rows[0];
-
-    // Owner membership
-    await pool.query(
-      'INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)',
-      [workspace.id, req.user.id, 'owner']
-    );
-
-    // Default channels
-    const generalResult = await pool.query(
-      `INSERT INTO channels (workspace_id, name, description, created_by)
-       VALUES ($1, 'general', 'Company-wide announcements and work-based matters', $2) RETURNING id`,
-      [workspace.id, req.user.id]
-    );
-    const randomResult = await pool.query(
-      `INSERT INTO channels (workspace_id, name, description, created_by)
-       VALUES ($1, 'random', 'Non-work banter and water cooler conversation', $2) RETURNING id`,
-      [workspace.id, req.user.id]
-    );
-
-    await pool.query('INSERT INTO channel_members (channel_id, user_id) VALUES ($1, $2)', [generalResult.rows[0].id, req.user.id]);
-    await pool.query('INSERT INTO channel_members (channel_id, user_id) VALUES ($1, $2)', [randomResult.rows[0].id, req.user.id]);
-
-    res.status(201).json({ workspace: { ...workspace, role: 'owner' } });
+    res.status(201).json({ workspace });
   } catch (err) {
     console.error('Create workspace error:', err);
     res.status(500).json({ error: 'Failed to create workspace' });
@@ -227,35 +191,9 @@ router.post('/invite/:code/join', auth, async (req, res) => {
       return res.json({ workspace: ws.rows[0], already_member: true });
     }
 
-    // Add as member
-    await pool.query(
-      'INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)',
-      [invite.workspace_id, req.user.id, 'member']
-    );
+    const workspace = await joinWorkspaceViaInvite(req.user.id, invite);
 
-    // Auto-join public channels
-    const publicChannels = await pool.query(
-      'SELECT id FROM channels WHERE workspace_id = $1 AND is_private = false AND is_archived = false',
-      [invite.workspace_id]
-    );
-    for (const ch of publicChannels.rows) {
-      await pool.query(
-        'INSERT INTO channel_members (channel_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [ch.id, req.user.id]
-      );
-    }
-
-    // Increment use count
-    await pool.query('UPDATE workspace_invites SET use_count = use_count + 1 WHERE id = $1', [invite.id]);
-
-    const ws = await pool.query(
-      `SELECT w.*, wm.role FROM workspaces w
-       JOIN workspace_members wm ON w.id = wm.workspace_id
-       WHERE w.id = $1 AND wm.user_id = $2`,
-      [invite.workspace_id, req.user.id]
-    );
-
-    res.json({ workspace: ws.rows[0] });
+    res.json({ workspace });
   } catch (err) {
     console.error('Join workspace error:', err);
     res.status(500).json({ error: 'Failed to join workspace' });
