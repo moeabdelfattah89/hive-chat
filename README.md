@@ -1,131 +1,95 @@
-# Hive - Team Communication Platform
+# Hive
 
-An open-source, self-hosted team communication platform built as a Slack alternative. Deploy on your own infrastructure for full control over your team's conversations.
+A modern, open-source team communication platform. Self-hosted Slack alternative with real-time messaging, workspaces, channels, threads, and more.
+
+**Built with React, Express, PostgreSQL, and Socket.io.**
 
 ## Features
 
-- **Real-time messaging** via WebSocket (Socket.io)
+- **Multi-Workspace** - Create and manage separate team workspaces
 - **Channels** - Public and private channels with topic/description
-- **Direct messages** - 1:1 conversations with online status
-- **Threaded replies** - Keep conversations organized
-- **Emoji reactions** - 200+ emojis with categorized picker
-- **File sharing** - Upload images, documents, and files (up to 50MB)
-- **Message search** - Full-text search across all messages
-- **Message editing & deletion** - Edit or delete your messages
-- **Typing indicators** - See when someone is typing
-- **User presence** - Online/away/offline status tracking
-- **Multiple workspaces** - Support for separate team workspaces
-- **Mobile responsive** - Works on desktop, tablet, and mobile
-- **JWT authentication** - Secure token-based auth
+- **Direct Messages** - 1:1 conversations between workspace members
+- **Threaded Replies** - Keep conversations organized
+- **Real-Time Messaging** - Instant delivery via WebSocket
+- **Emoji Reactions** - React to any message with 200+ emojis
+- **File Sharing** - Upload images, documents, and files (up to 50MB)
+- **Message Search** - Full-text search across channels
+- **Message Editing & Deletion** - Edit or delete your own messages
+- **Typing Indicators** - See when someone is typing
+- **User Presence** - Online/away/DND status tracking
+- **User Profiles** - Display name, avatar, title, timezone, and status
+- **Invite System** - Generate invite links with expiration and usage limits
+- **Markdown** - Bold, italic, code, and link formatting
+- **Security Hardened** - XSS prevention, rate limiting, authz on all endpoints
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 18, Vite, Axios, Socket.io-client |
-| Backend | Node.js, Express, Socket.io, Multer |
-| Database | PostgreSQL 16 |
+| Backend | Node.js, Express, Socket.io |
+| Database | PostgreSQL |
 | Auth | JWT, bcryptjs |
-| DevOps | Docker, docker-compose, nginx |
+| Security | Helmet, express-rate-limit |
 
-## Quick Start (Docker)
-
-The fastest way to get Hive running:
-
-```bash
-# Clone the repo
-cd hive
-
-# Start all services
-docker compose up -d
-
-# Open in browser
-open http://localhost:5173
-```
-
-This starts PostgreSQL, the backend API, and the frontend (nginx).
-
-## Development Setup
+## Quick Start
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 18+
 - PostgreSQL 14+
-- npm or yarn
 
-### 1. Database
-
-```bash
-# Start PostgreSQL (or use Docker for just the DB)
-docker compose up postgres -d
-
-# Or use your own PostgreSQL and create a database:
-# CREATE DATABASE hive;
-```
-
-### 2. Backend
+### 1. Clone and install
 
 ```bash
-cd backend
+git clone https://github.com/moeabdelfattah89/hive-chat.git
+cd hive-chat
 
-# Install dependencies
-npm install
+# Install backend
+cd backend && npm install
 
-# Copy and configure environment
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Start the server
-npm run dev
+# Install frontend
+cd ../frontend && npm install
 ```
 
-The API runs on `http://localhost:3001`.
-
-### 3. Frontend
+### 2. Set up the database
 
 ```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start dev server
-npm run dev
+createdb hive
+psql hive < backend/db/schema.sql
 ```
 
-The app runs on `http://localhost:5173`.
+### 3. Configure environment
 
-## Deploy to GCP
+Create `backend/.env`:
 
-### Option 1: Google Compute Engine (VM)
+```env
+DATABASE_URL=postgresql://localhost:5432/hive
+JWT_SECRET=change-this-to-a-random-secret
+FRONTEND_URL=http://localhost:5173
+PORT=3001
+UPLOAD_DIR=./uploads
+MAX_FILE_SIZE=52428800
+```
+
+### 4. Run
 
 ```bash
-# SSH into your GCE instance
-gcloud compute ssh your-instance
+# Terminal 1 - Backend
+cd backend && npm run dev
 
-# Install Docker
-sudo apt-get update
-sudo apt-get install -y docker.io docker-compose-plugin
-
-# Clone your repo and start
-cd hive
-sudo docker compose up -d
+# Terminal 2 - Frontend
+cd frontend && npm run dev
 ```
 
-### Option 2: Google Kubernetes Engine (GKE)
-
-Build and push images to Google Artifact Registry, then deploy with Kubernetes manifests. Recommended for production at scale.
-
-### Option 3: Cloud Run
-
-Build container images and deploy the backend and frontend as separate Cloud Run services. Use Cloud SQL for PostgreSQL.
+Open **http://localhost:5173** and create your first workspace.
 
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://hive:hive_secret@localhost:5432/hive` |
-| `JWT_SECRET` | Secret key for JWT tokens | (change in production!) |
+| `DATABASE_URL` | PostgreSQL connection string | - |
+| `JWT_SECRET` | Secret key for JWT tokens | - |
 | `PORT` | Backend server port | `3001` |
 | `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:5173` |
 | `MAX_FILE_SIZE` | Max upload size in bytes | `52428800` (50MB) |
@@ -134,45 +98,67 @@ Build container images and deploy the backend and frontend as separate Cloud Run
 ## Project Structure
 
 ```
-hive/
+hive-chat/
 ├── backend/
 │   ├── db/
-│   │   ├── index.js          # Database pool
-│   │   └── schema.sql        # Full database schema
+│   │   ├── index.js            # Database connection pool
+│   │   └── schema.sql          # Full database schema
 │   ├── middleware/
-│   │   └── auth.js            # JWT auth middleware
+│   │   └── auth.js             # JWT auth, role checks, workspace membership
 │   ├── routes/
-│   │   ├── auth.js            # Register, login, profile
-│   │   ├── channels.js        # Channel CRUD
-│   │   ├── messages.js        # Messages, threads, reactions, search
-│   │   ├── users.js           # Users, DM conversations, presence
-│   │   └── files.js           # File uploads
+│   │   ├── auth.js             # Register, login, profile management
+│   │   ├── channels.js         # Channel CRUD and membership
+│   │   ├── files.js            # File upload handling
+│   │   ├── messages.js         # Messages, threads, pins, search
+│   │   ├── users.js            # Workspace users, presence, DMs
+│   │   └── workspaces.js       # Workspace management, invites
 │   ├── socket/
-│   │   └── index.js           # Socket.io real-time events
-│   ├── server.js              # Express app entry point
-│   ├── Dockerfile
-│   └── package.json
+│   │   └── index.js            # Real-time events (messages, typing, presence)
+│   ├── utils/
+│   │   └── workspace.js        # Shared workspace creation logic
+│   └── server.js               # Express app setup
 ├── frontend/
-│   ├── src/
-│   │   ├── api/index.js       # Axios client
-│   │   ├── contexts/
-│   │   │   ├── AuthContext.jsx
-│   │   │   └── SocketContext.jsx
-│   │   ├── components/
-│   │   │   ├── auth/          # Login, Register
-│   │   │   ├── layout/        # Sidebar
-│   │   │   ├── chat/          # ChannelView, DMView, Message, MessageInput, ThreadPanel, EmojiPicker
-│   │   │   └── modals/        # CreateChannel, NewDM
-│   │   ├── App.jsx
-│   │   ├── App.css
-│   │   └── main.jsx
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   └── package.json
-├── docker-compose.yml
+│   └── src/
+│       ├── api/index.js        # Axios instance with auth interceptor
+│       ├── components/
+│       │   ├── auth/           # Login, Register
+│       │   ├── chat/           # ChannelView, DMView, Message, MessageInput, ThreadPanel
+│       │   ├── layout/         # Sidebar
+│       │   └── modals/         # CreateChannel, CreateWorkspace, InviteModal, ProfileSettings
+│       ├── contexts/
+│       │   ├── AuthContext.jsx
+│       │   └── SocketContext.jsx
+│       └── App.jsx
+├── LICENSE
+├── CONTRIBUTING.md
 └── README.md
 ```
 
+## Contributing
+
+We welcome contributions of all kinds! Check out [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Good First Issues
+
+Look for issues labeled [`good first issue`](https://github.com/moeabdelfattah89/hive-chat/labels/good%20first%20issue) to get started.
+
+### Areas We'd Love Help With
+
+- **Testing** - Unit and integration tests (Jest, React Testing Library, Supertest)
+- **Accessibility** - ARIA labels, keyboard navigation, screen reader support
+- **Dark Mode** - Theme system with dark/light toggle
+- **Notifications** - Browser push notifications for mentions and DMs
+- **Mobile** - Responsive layouts for mobile and tablet
+- **Message Formatting** - Code blocks, blockquotes, lists
+- **Admin Panel** - Workspace admin dashboard
+- **i18n** - Internationalization and localization
+- **API Docs** - OpenAPI/Swagger documentation
+- **Deployment** - Docker Compose, Kubernetes manifests, cloud deploy guides
+
+## Security
+
+If you discover a security vulnerability, please email the maintainer directly rather than opening a public issue.
+
 ## License
 
-MIT
+[MIT](LICENSE)
