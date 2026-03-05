@@ -20,7 +20,7 @@ async function createWorkspaceForUser(userId, workspaceName, description) {
 
   const wsResult = await pool.query(
     `INSERT INTO workspaces (name, slug, description, created_by)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
+     VALUES ($1, $2, $3, $4) RETURNING id, name, slug, description, created_at`,
     [workspaceName, finalSlug, description || 'Your team communication hub', userId]
   );
   const workspace = wsResult.rows[0];
@@ -77,7 +77,7 @@ async function joinWorkspaceViaInvite(userId, invite) {
 
   // Return workspace with role
   const ws = await pool.query(
-    `SELECT w.*, wm.role FROM workspaces w
+    `SELECT w.id, w.name, w.slug, w.description, w.created_at, wm.role FROM workspaces w
      JOIN workspace_members wm ON w.id = wm.workspace_id
      WHERE w.id = $1 AND wm.user_id = $2`,
     [invite.workspace_id, userId]

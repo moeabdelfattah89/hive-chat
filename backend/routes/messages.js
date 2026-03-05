@@ -99,7 +99,7 @@ router.post('/channel/:channelId', auth, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO messages (channel_id, user_id, content, parent_id)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [channelId, req.user.id, content.trim(), parent_id || null]
     );
 
@@ -212,7 +212,7 @@ router.post('/dm/:conversationId', auth, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO messages (conversation_id, user_id, content, parent_id)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
+       VALUES ($1, $2, $3, $4) RETURNING id`,
       [conversationId, req.user.id, content.trim(), parent_id || null]
     );
 

@@ -30,7 +30,7 @@ router.post('/', auth, async (req, res) => {
 // Get workspace details
 router.get('/:workspaceId', auth, workspaceMember, async (req, res) => {
   try {
-    const ws = await pool.query('SELECT * FROM workspaces WHERE id = $1', [req.params.workspaceId]);
+    const ws = await pool.query('SELECT id, name, slug, description, created_at FROM workspaces WHERE id = $1', [req.params.workspaceId]);
     if (ws.rows.length === 0) {
       return res.status(404).json({ error: 'Workspace not found' });
     }
@@ -56,7 +56,8 @@ router.get('/:workspaceId', auth, workspaceMember, async (req, res) => {
 router.get('/:workspaceId/invites', auth, workspaceMember, requireRole('owner', 'admin'), async (req, res) => {
   try {
     const invites = await pool.query(
-      `SELECT wi.*, u.display_name as created_by_name
+      `SELECT wi.id, wi.workspace_id, wi.code, wi.max_uses, wi.use_count, wi.expires_at, wi.created_at,
+              u.display_name as created_by_name
        FROM workspace_invites wi
        LEFT JOIN users u ON wi.created_by = u.id
        WHERE wi.workspace_id = $1 AND wi.is_active = true
@@ -82,7 +83,7 @@ router.post('/:workspaceId/invites', auth, workspaceMember, requireRole('owner',
 
     const result = await pool.query(
       `INSERT INTO workspace_invites (workspace_id, code, created_by, max_uses, expires_at)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, workspace_id, code, max_uses, use_count, expires_at, created_at`,
       [req.params.workspaceId, code, req.user.id, max_uses || null, expiresAt]
     );
 
@@ -111,7 +112,8 @@ router.delete('/:workspaceId/invites/:inviteId', auth, workspaceMember, requireR
 router.get('/invite/:code', optionalAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT wi.*, w.name as workspace_name, w.slug as workspace_slug, w.description as workspace_description
+      `SELECT wi.id, wi.workspace_id, wi.code, wi.max_uses, wi.use_count, wi.expires_at, wi.created_at,
+              w.name as workspace_name, w.slug as workspace_slug, w.description as workspace_description
        FROM workspace_invites wi
        JOIN workspaces w ON wi.workspace_id = w.id
        WHERE wi.code = $1 AND wi.is_active = true`,
@@ -157,7 +159,7 @@ router.get('/invite/:code', optionalAuth, async (req, res) => {
 router.post('/invite/:code/join', auth, async (req, res) => {
   try {
     const inviteResult = await pool.query(
-      'SELECT * FROM workspace_invites WHERE code = $1 AND is_active = true',
+      'SELECT id, workspace_id, code, max_uses, use_count, expires_at, created_at FROM workspace_invites WHERE code = $1 AND is_active = true',
       [req.params.code]
     );
 
@@ -183,7 +185,7 @@ router.post('/invite/:code/join', auth, async (req, res) => {
 
     if (existing.rows.length > 0) {
       const ws = await pool.query(
-        `SELECT w.*, wm.role FROM workspaces w
+        `SELECT w.id, w.name, w.slug, w.description, w.created_at, wm.role FROM workspaces w
          JOIN workspace_members wm ON w.id = wm.workspace_id
          WHERE w.id = $1 AND wm.user_id = $2`,
         [invite.workspace_id, req.user.id]

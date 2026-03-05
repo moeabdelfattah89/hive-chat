@@ -103,7 +103,7 @@ router.post('/register-with-invite', async (req, res) => {
 
     // Validate invite
     const inviteResult = await pool.query(
-      'SELECT * FROM workspace_invites WHERE code = $1 AND is_active = true',
+      'SELECT id, workspace_id, code, max_uses, use_count, expires_at, created_at FROM workspace_invites WHERE code = $1 AND is_active = true',
       [invite_code]
     );
 
@@ -179,7 +179,7 @@ router.post('/login', async (req, res) => {
 
     // Get user workspaces
     const workspaces = await pool.query(
-      `SELECT w.*, wm.role FROM workspaces w
+      `SELECT w.id, w.name, w.slug, w.description, w.created_at, wm.role FROM workspaces w
        JOIN workspace_members wm ON w.id = wm.workspace_id
        WHERE wm.user_id = $1
        ORDER BY w.created_at`,
@@ -197,7 +197,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const workspaces = await pool.query(
-      `SELECT w.*, wm.role FROM workspaces w
+      `SELECT w.id, w.name, w.slug, w.description, w.created_at, wm.role FROM workspaces w
        JOIN workspace_members wm ON w.id = wm.workspace_id
        WHERE wm.user_id = $1
        ORDER BY w.created_at`,
