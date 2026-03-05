@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const passport = require('./config/passport');
 const pool = require('./db');
 const { setupSocket } = require('./socket');
 
@@ -33,6 +34,9 @@ app.use(cors({
 // Body parsing with size limits
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Passport (Google OAuth)
+app.use(passport.initialize());
 
 // Rate limiting — auth endpoints (stricter)
 const authLimiter = rateLimit({

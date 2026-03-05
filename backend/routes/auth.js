@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../db');
+const passport = require('../config/passport');
 const { auth } = require('../middleware/auth');
 const { createWorkspaceForUser, joinWorkspaceViaInvite } = require('../utils/workspace');
 
@@ -169,6 +170,11 @@ router.post('/login', async (req, res) => {
     }
 
     const { password_hash, ...user } = result.rows[0];
+
+    if (!password_hash) {
+      return res.status(401).json({ error: 'This account uses Google sign-in. Please use the "Continue with Google" button.' });
+    }
+
     const validPassword = await bcrypt.compare(password, password_hash);
 
     if (!validPassword) {
@@ -314,5 +320,26 @@ router.post('/me/avatar', auth, (req, res) => {
     }
   });
 });
+
+// Google OAuth - initiate
+router.get('/google', passport.authenticate('google', {
+  scope: ['profile', 'email'],
+  session: false,
+}));
+
+// Google OAuth - callback
+router.get('/google/callback',
+  passport.authenticate('google', { session: false, failureRedirect: '/' }),
+  (req, res) => {
+    try {
+      const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+    } catch (err) {
+      console.error('Google callback error:', err);
+      res.redirect('/');
+    }
+  }
+);
 
 module.exports = router;
